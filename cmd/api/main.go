@@ -12,6 +12,8 @@ import (
 	"github.com/fluxa/fluxa/internal/config"
 	"github.com/fluxa/fluxa/internal/fees"
 	"github.com/fluxa/fluxa/internal/fx"
+	"github.com/fluxa/fluxa/internal/fiat"
+	"github.com/fluxa/fluxa/internal/fiat/flutterwave"
 	"github.com/fluxa/fluxa/internal/indexer"
 	"github.com/fluxa/fluxa/internal/postgres"
 	"github.com/fluxa/fluxa/internal/queue"
@@ -62,6 +64,7 @@ func main() {
 	txRepo := postgres.NewTransactionRepo(db)
 	convRepo := postgres.NewConversionRepo(db)
 	feeRepo := postgres.NewFeeRepo(db)
+	fiatRepo := postgres.NewFiatRepo(db)
 
 	stellarClient := stellar.NewClient(cfg.StellarHorizonURL, cfg.StellarNetwork)
 	signer := stellar.NewEnvSigner(cfg.MasterEncryptionKey, cfg.StellarNetwork)
@@ -73,6 +76,9 @@ func main() {
 	walletSvc := wallet.NewService(walletRepo, stellarClient, cfg.MasterEncryptionKey)
 	transferSvc := transfer.NewService(txRepo, walletRepo, feeSvc, queueClient)
 	fxSvc := fx.NewService(walletRepo, convRepo, feeSvc, stellarClient, cfg.StellarUSDCIssuer)
+
+	fwProvider := flutterwave.NewProvider(cfg.FlutterwaveSecretKey, cfg.FlutterwaveWebhookHash)
+	fiatSvc := fiat.NewService(fiatRepo, fwProvider, fxSvc, transferSvc, cfg.PlatformWalletID, "flutterwave")
 
 	engine := settlement.NewEngine(
 		txRepo, walletRepo, feeSvc, stellarClient, signer,
@@ -90,9 +96,10 @@ func main() {
 	walletHandler := wallet.NewHandler(walletSvc)
 	transferHandler := transfer.NewHandler(transferSvc)
 	fxHandler := fx.NewHandler(fxSvc)
+	fiatHandler := fiat.NewHandler(fiatSvc)
 	feeHandler := fees.NewHandler(feeSvc)
 
-	srv := server.New(walletHandler, transferHandler, fxHandler, feeHandler, reconcileHandler, cfg.Port)
+	srv := server.New(walletHandler, transferHandler, fxHandler, fiatHandler, feeHandler, reconcileHandler, cfg.Port)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

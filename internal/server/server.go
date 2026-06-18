@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/fluxa/fluxa/internal/fees"
+	"github.com/fluxa/fluxa/internal/fiat"
 	"github.com/fluxa/fluxa/internal/fx"
 	"github.com/fluxa/fluxa/internal/reconcile"
 	"github.com/fluxa/fluxa/internal/transfer"
@@ -24,6 +25,7 @@ func New(
 	walletHandler *wallet.Handler,
 	transferHandler *transfer.Handler,
 	fxHandler *fx.Handler,
+	fiatHandler *fiat.Handler,
 	feeHandler *fees.Handler,
 	reconcileHandler *reconcile.Handler,
 	port string,
@@ -43,6 +45,9 @@ func New(
 
 	r.Route("/v1", func(r chi.Router) {
 		r.Route("/wallets", walletHandler.Routes())
+		r.Route("/wallets/{id}/deposit", fiatHandler.DepositRoutes())
+		r.Route("/wallets/{id}/withdraw", fiatHandler.WithdrawRoutes())
+		r.Route("/webhooks/fiat", fiatHandler.WebhookRoutes())
 		r.Route("/transfers", transferHandler.Routes())
 		r.Route("/transactions", transferHandler.TransactionRoutes())
 		r.Route("/fx", fxHandler.Routes())
